@@ -135,7 +135,7 @@ function speak(text,after){
 async function ask(prompt){
   const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,provider:$('prov').value})});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok)throw {code:d.error==='rate'?'rate_limited':'err',message:d.message};
+  if(!r.ok)throw {code:d.error==='rate'?'rate_limited':'err',message:d.message||(r.status===404?'Function /api/chat not found: the api folder (api/chat.js) is missing from your GitHub repo.':'Server error '+r.status)};
   return parse(d.text);
 }
 const covered=()=>turns.map(t=>t.word).filter(Boolean).join(', ')||'none';
@@ -154,7 +154,7 @@ function showQ(j){
   speak(j.spoken||j.question,()=>{if($('hf').checked)listen();else status('Tap the mic to answer.')});
 }
 function fail(e){
-  const m=e&&e.code==='not_granted'?'The AI provider failed. Try another model from the AI dropdown.':e&&e.code==='rate_limited'?'Free limit reached. Wait a minute or switch model in the AI dropdown.':'Something went wrong. Please try again.';
+  const m='Error: '+((e&&e.message)||'unknown')+(e&&e.code==='rate_limited'?' (free limit hit: wait a minute or switch model)':'');
   status(m);add(el('div','b ai',m));
 }
 
