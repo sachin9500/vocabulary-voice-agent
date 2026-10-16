@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>VocabVoice – Talk to learn words</title>
+<style>
+:root{--bg:#faf8f4;--sf:#fff;--tx:#1d1b18;--mu:#6b665d;--bd:#e6e1d6;--ac:#2f6f4e;--ac2:#e8f2ec;--ok:#2f6f4e;--wr:#b3392b;--md:#a8740f;--bub:#f0ece2;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#161512;--sf:#201f1b;--tx:#efece4;--mu:#a09a8d;--bd:#34322b;--ac:#6fc59a;--ac2:#1f2d26;--ok:#6fc59a;--wr:#f0877a;--md:#e3b04f;--bub:#2a2822}}
+:root[data-theme="dark"]{--bg:#161512;--sf:#201f1b;--tx:#efece4;--mu:#a09a8d;--bd:#34322b;--ac:#6fc59a;--ac2:#1f2d26;--ok:#6fc59a;--wr:#f0877a;--md:#e3b04f;--bub:#2a2822}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.45}
+.app{max-width:720px;margin:0 auto;padding:16px 14px 190px}
+h1{font-size:1.35rem;margin:6px 0 2px}
+.sub{color:var(--mu);font-size:.9rem;margin:0 0 12px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.chip{border:1px solid var(--bd);background:var(--sf);color:var(--tx);padding:7px 14px;border-radius:99px;font-size:.9rem;cursor:pointer}
+.chip.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .chip.on{color:#10261b}}
+.btn{border:1px solid var(--bd);background:var(--sf);color:var(--tx);padding:9px 14px;border-radius:10px;font-size:.9rem;cursor:pointer}
+.btn.pri{background:var(--ac);color:#fff;border-color:var(--ac);font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#chat{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.b{padding:11px 14px;border-radius:14px;max-width:92%;white-space:pre-wrap;word-wrap:break-word}
+.b.ai{background:var(--bub);align-self:flex-start}
+.b.me{background:var(--ac);color:#fff;align-self:flex-end}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .b.me{color:#10261b}}
+.b.q{border-left:4px solid var(--ac);font-weight:600}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:14px;padding:14px;align-self:stretch}
+.verdict{font-weight:700;font-size:1.05rem;margin-bottom:6px}
+.v-right{color:var(--ok)}.v-partly{color:var(--md)}.v-wrong{color:var(--wr)}
+.card h4{margin:12px 0 4px;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mu)}
+.card ul{margin:0;padding-left:20px}
+.card li{margin:2px 0}
+.good li::marker{color:var(--ok)}.bad li::marker{color:var(--wr)}
+.better{background:var(--ac2);border-radius:10px;padding:9px 11px}
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--sf);border-top:1px solid var(--bd);padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}
+.dock-in{max-width:720px;margin:0 auto}
+.live{min-height:22px;font-size:.9rem;color:var(--mu);margin-bottom:6px}
+.ctrl{display:flex;gap:10px;align-items:center}
+#mic{width:58px;height:58px;border-radius:50%;border:none;background:var(--ac);color:#fff;font-size:1.5rem;cursor:pointer;flex:none}
+#mic.rec{background:var(--wr);animation:p 1.1s infinite}
+@keyframes p{50%{box-shadow:0 0 0 10px rgba(179,57,43,.18)}}
+#txt{flex:1;min-width:0;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font-size:1rem}
+details{margin-top:14px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:10px 14px}
+summary{cursor:pointer;font-weight:600}
+textarea.pr{width:100%;height:210px;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:.82rem/1.4 ui-monospace,Menlo,Consolas,monospace}
+.note{font-size:.8rem;color:var(--mu)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>🎙️ VocabVoice</h1>
+  <p class="sub">Your spoken vocabulary coach. It asks, you answer out loud, it tells you what's right, what's wrong, and how to improve.</p>
+
+  <div class="chips" id="levels">
+    <button class="chip" data-l="Beginner">Beginner</button>
+    <button class="chip on" data-l="Intermediate">Intermediate</button>
+    <button class="chip" data-l="Advanced">Advanced</button>
+  </div>
+  <div class="row">
+    <button class="btn pri" id="start">Start session</button>
+    <button class="btn" id="end">End &amp; get improvement plan</button>
+    <select id="prov" class="btn"><option value="auto">AI: Auto (free models)</option><option value="gemini">Gemini</option><option value="groq">Groq (Llama)</option><option value="openrouter">OpenRouter (DeepSeek &amp; more)</option></select>
+    <label class="note"><input type="checkbox" id="hf" checked> Hands-free (auto-listen after each question)</label>
+  </div>
+  <p class="note" id="support"></p>
+
+  <div id="chat"></div>
+
+  <details>
+    <summary>📋 Master prompt for future learning (copy &amp; reuse in any AI)</summary>
+    <p class="note">Paste this into Claude, ChatGPT or any voice-mode AI to get the same coaching anywhere. This exact prompt also powers this prototype.</p>
+    <textarea class="pr" id="prompt" readonly></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" id="copyP">Copy prompt</button></div>
+  </details>
+</div>
+
+<div class="dock"><div class="dock-in">
+  <div class="live" id="live">Press Start session to begin.</div>
+  <div class="ctrl">
+    <button id="mic" title="Tap to speak">🎤</button>
+    <input id="txt" placeholder="…or type your answer" autocomplete="off">
+    <button class="btn" id="send">Send</button>
+  </div>
+</div></div>
+
+<script>
+const MASTER = `You are VocabVoice, a friendly spoken vocabulary coach.
+
+GOAL: Help me learn and truly retain English vocabulary through conversation.
+
+HOW EACH TURN WORKS:
+1. Ask ONE question at a time, matched to my level (Beginner / Intermediate / Advanced). Rotate question types: define a word, use it in a sentence, pick the correct meaning, synonym/antonym, fix a misused word, choose between confusable words.
+2. Wait for my answer. Then respond in this structure:
+   - Verdict: Right / Partly right / Wrong (score out of 10)
+   - What I got right
+   - What was wrong (be specific: meaning, grammar, usage, pronunciation-type spelling)
+   - A better model answer
+   - 2-3 concrete tips to improve (memory trick, word family, example sentence, common mistake)
+3. Ask the next question. Do not repeat words already covered. Revisit words I got wrong after a few turns (spaced repetition).
+
+STYLE: Keep spoken replies under 45 words, warm and encouraging, no markdown when speaking. Put full detail in the written feedback.
+
+END OF SESSION: Give a summary with strengths, weak words, a 7-day practice plan, and a ready-to-paste prompt for my next session that includes my level and weak words.`;
+
+const $=id=>document.getElementById(id);
+const chat=$('chat'), live=$('live'), mic=$('mic'), txt=$('txt');
+$('prompt').value=MASTER;
+let level='Intermediate', sample=null, busy=false, active=false, curQ=null, turns=[], rec=null, finalT='';
+
+
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+$('support').textContent=SR?'':'Voice input is not supported in this browser. Use Chrome, Edge or Safari for speaking, or type your answers.';
+
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function add(n){chat.appendChild(n);n.scrollIntoView({behavior:'smooth',block:'end'});return n}
+function status(s){live.textContent=s}
+function parse(t){t=String(t).replace(/```json|```/g,'');const i=t.indexOf('{'),j=t.lastIndexOf('}');return JSON.parse(t.slice(i,j+1))}
+
+document.querySelectorAll('#levels .chip').forEach(c=>c.onclick=()=>{
+  document.querySelectorAll('#levels .chip').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');level=c.dataset.l});
+
+function speak(text,after){
+  if(!('speechSynthesis' in window)){after&&after();return}
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);u.rate=1;u.lang='en-IN';
+  u.onend=()=>{after&&after()};u.onerror=()=>{after&&after()};
+  status('🔊 Speaking…');speechSynthesis.speak(u);
+}
+
+async function ask(prompt){
+  const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,provider:$('prov').value})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw {code:d.error==='rate'?'rate_limited':'err',message:d.message};
+  return parse(d.text);
+}
+const covered=()=>turns.map(t=>t.word).filter(Boolean).join(', ')||'none';
+const hist=()=>turns.slice(-6).map(t=>`Q: ${t.q} | My answer: ${t.a} | Verdict: ${t.verdict} | Word: ${t.word}`).join('\n')||'none';
+
+async function start(){
+  active=true;turns=[];chat.textContent='';busy=true;status('Preparing your first question…');
+  try{
+    const j=await ask(`${MASTER}\n\nSession level: ${level}. Ask the FIRST question now.\nReturn ONLY JSON: {"word":"target word","question":"the question text","spoken":"a friendly greeting plus the question, under 45 words, no markdown"}`);
+    showQ(j);
+  }catch(e){fail(e)}
+  busy=false;
+}
+function showQ(j){
+  curQ=j;add(el('div','b ai q',j.question));
+  speak(j.spoken||j.question,()=>{if($('hf').checked)listen();else status('Tap the mic to answer.')});
+}
+function fail(e){
+  const m=e&&e.code==='not_granted'?'The AI provider failed. Try another model from the AI dropdown.':e&&e.code==='rate_limited'?'Free limit reached. Wait a minute or switch model in the AI dropdown.':'Something went wrong. Please try again.';
+  status(m);add(el('div','b ai',m));
+}
+
+function list(title,arr,cls){
+  if(!arr||!arr.length)return null;const d=el('div');d.appendChild(el('h4',null,title));
+  const u=el('ul',cls);arr.forEach(x=>u.appendChild(el('li',null,x)));d.appendChild(u);return d;
+}
+async function submit(ans){
+  ans=(ans||'').trim();if(!ans||busy)return;
+  if(!active||!curQ){status('Press Start session first.');return}
+  busy=true;txt.value='';stopRec();add(el('div','b me',ans));status('Coach is checking your answer…');
+  try{
+    const j=await ask(`${MASTER}\n\nLevel: ${level}.\nWords already covered: ${covered()}.\nRecent history:\n${hist()}\n\nCurrent question (target word "${curQ.word}"): ${curQ.question}\nMy spoken answer (may contain speech-recognition errors; be forgiving of tiny transcription slips): ${ans}\n\nEvaluate honestly and strictly on meaning and usage. Then ask the next question (new word, or revisit a past mistake).\nReturn ONLY JSON:\n{"verdict":"right|partly|wrong","score":0-10,"right":["what I got right"],"wrong":["what was wrong, specific"],"model_answer":"a better full answer","tips":["2-3 concrete improvement tips: memory trick, word family, example sentence, common mistake"],"spoken":"under 45 words, no markdown: verdict, the key correction, then the next question","next":{"word":"...","question":"..."}}`);
+    turns.push({q:curQ.question,a:ans,verdict:j.verdict+' '+j.score+'/10',word:curQ.word});
+    const c=el('div','card');
+    const lab={right:'✅ Correct',partly:'🟡 Partly right',wrong:'❌ Not quite'}[j.verdict]||'Feedback';
+    c.appendChild(el('div','verdict v-'+(j.verdict||'partly'),`${lab} · ${j.score}/10`));
+    [list('What you got right',j.right,'good'),list('What needs fixing',j.wrong,'bad')].forEach(x=>x&&c.appendChild(x));
+    if(j.model_answer){c.appendChild(el('h4',null,'Better answer'));c.appendChild(el('div','better',j.model_answer))}
+    const t=list('How to improve',j.tips);if(t)c.appendChild(t);
+    add(c);
+    curQ=j.next;add(el('div','b ai q',j.next.question));
+    speak(j.spoken||j.next.question,()=>{busy=false;if($('hf').checked)listen();else status('Tap the mic to answer.')});
+    return;
+  }catch(e){fail(e)}
+  busy=false;
+}
+
+function stopRec(){try{rec&&rec.stop()}catch(e){}}
+function listen(){
+  if(!SR){status('Voice input not supported here. Type your answer.');return}
+  if(!active){status('Press Start session first.');return}
+  if(rec&&mic.classList.contains('rec')){stopRec();return}
+  speechSynthesis.cancel();finalT='';
+  rec=new SR();rec.lang='en-IN';rec.interimResults=true;rec.continuous=false;
+  rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;finalT=t;status('🎤 '+t)};
+  rec.onerror=e=>{mic.classList.remove('rec');status(e.error==='not-allowed'||e.error==='service-not-allowed'?'Microphone blocked. Allow mic access, or type your answer.':e.error==='no-speech'?"I didn't hear anything. Tap the mic to try again.":'Mic error: '+e.error)};
+  rec.onend=()=>{mic.classList.remove('rec');if(finalT.trim())submit(finalT)};
+  try{rec.start();mic.classList.add('rec');status('🎤 Listening… speak your answer')}catch(e){status('Could not start the mic.')}
+}
+
+async function finish(){
+  if(!turns.length){status('Answer at least one question first.');return}
+  if(busy)return;busy=true;active=false;stopRec();speechSynthesis.cancel();status('Building your improvement plan…');
+  try{
+    const log=turns.map(t=>`Word: ${t.word} | Q: ${t.q} | Answer: ${t.a} | ${t.verdict}`).join('\n');
+    const j=await ask(`${MASTER}\n\nThe session is over. Level: ${level}. Full log:\n${log}\n\nReturn ONLY JSON: {"summary":"2-3 sentences","strengths":["..."],"weak_words":["word: why I struggled"],"plan":["Day 1: ...","... 7 items"],"next_prompt":"a complete ready-to-paste prompt for my next session including my level, my weak words, and the coaching structure"}`);
+    const c=el('div','card');c.appendChild(el('div','verdict','📈 Your improvement plan'));c.appendChild(el('div',null,j.summary));
+    [list('Strengths',j.strengths,'good'),list('Words to revisit',j.weak_words,'bad'),list('7-day plan',j.plan)].forEach(x=>x&&c.appendChild(x));
+    c.appendChild(el('h4',null,'Your prompt for next time'));
+    const ta=el('textarea','pr');ta.readOnly=true;ta.value=j.next_prompt;c.appendChild(ta);
+    const b=el('button','btn','Copy prompt');b.style.marginTop='8px';b.onclick=()=>copy(ta.value,b);c.appendChild(b);
+    add(c);status('Session finished. Press Start session to go again.');speak(j.summary);
+  }catch(e){fail(e)}
+  busy=false;
+}
+function copy(v,b){
+  const done=()=>{const o=b.textContent;b.textContent='Copied ✓';setTimeout(()=>b.textContent=o,1500)};
+  try{navigator.clipboard.writeText(v).then(done,()=>fb())}catch(e){fb()}
+  function fb(){const t=el('textarea');t.value=v;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
+}
+
+$('start').onclick=start;$('end').onclick=finish;mic.onclick=listen;
+$('send').onclick=()=>submit(txt.value);
+txt.addEventListener('keydown',e=>{if(e.key==='Enter')submit(txt.value)});
+$('copyP').onclick=()=>copy(MASTER,$('copyP'));
+</script>
+</body>
+</html>
