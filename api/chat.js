@@ -7,7 +7,7 @@ const P = {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } })
     });
-    if (!r.ok) throw { status: r.status };
+    if (!r.ok) throw { status: r.status, detail: (await r.text()).slice(0, 160) };
     const d = await r.json();
     return d.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
   },
@@ -22,24 +22,25 @@ async function oai(url, key, model, prompt, json) {
   const body = { model, messages: [{ role: 'user', content: prompt }] };
   if (json) body.response_format = { type: 'json_object' };
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key }, body: JSON.stringify(body) });
-  if (!r.ok) throw { status: r.status };
+  if (!r.ok) throw { status: r.status, detail: (await r.text()).slice(0, 160) };
   const d = await r.json();
   return d.choices?.[0]?.message?.content || '';
 }
 
 module.exports = async (req, res) => {
+  if (req.method === 'GET') return res.status(200).json({ keys_detected: Object.fromEntries(Object.keys(KEYS).map(k => [k, !!process.env[KEYS[k]]])) });
   if (req.method !== 'POST') return res.status(405).json({ error: 'method' });
   const { prompt, provider } = req.body || {};
   if (!prompt || prompt.length > 12000) return res.status(400).json({ error: 'bad', message: 'Bad request' });
   const configured = Object.keys(P).filter(k => process.env[KEYS[k]]);
   const order = provider && provider !== 'auto' ? [provider].filter(k => configured.includes(k)) : configured;
-  if (!order.length) return res.status(500).json({ error: 'nokey', message: 'No API key set for that provider' });
-  let limited = false;
+  if (!order.length) return res.status(500).json({ error: 'nokey', message: 'No key found for ' + (provider || 'any provider') + '. Check the variable name and redeploy.' });
+  let limited = false; const errs = [];
   for (const name of order) {
     try {
       const text = await P[name](prompt);
       if (text) return res.status(200).json({ text, provider: name });
-    } catch (e) { if (e.status === 429) limited = true; }
+    } catch (e) { if (e.status === 429) limited = true; errs.push(name + ' ' + (e.status || 'network') + ' ' + (e.detail || '')); }
   }
-  res.status(limited ? 429 : 502).json({ error: limited ? 'rate' : 'fail', message: 'All providers failed' });
+  res.status(limited ? 429 : 502).json({ error: limited ? 'rate' : 'fail', message: errs.join(' | ') || 'All providers failed' });
 };
