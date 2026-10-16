@@ -36,7 +36,7 @@ label.l{display:block;font-weight:700;font-size:.85rem;margin:16px 0 6px}
 .prog{flex:1;min-width:120px;height:8px;background:var(--bub);border-radius:9px;overflow:hidden}
 .prog i{display:block;height:100%;width:0;background:var(--ac);transition:width .4s}
 .st{font-size:.82rem;color:var(--mu)}
-#chat{display:flex;flex-direction:column;gap:12px;padding-bottom:170px}
+#chat{display:flex;flex-direction:column;gap:12px;padding-bottom:230px}
 .b{padding:11px 14px;border-radius:16px;max-width:92%;white-space:pre-wrap;word-wrap:break-word}
 .b.ai{background:var(--bub);align-self:flex-start;border-bottom-left-radius:4px}
 .b.me{background:var(--ac);color:var(--on);align-self:flex-end;border-bottom-right-radius:4px}
@@ -62,6 +62,8 @@ details{margin-top:16px;background:var(--sf);border:1px solid var(--bd);border-r
 summary{cursor:pointer;font-weight:700}
 textarea.pr{width:100%;height:200px;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:.8rem/1.4 ui-monospace,Menlo,Consolas,monospace}
 .note{font-size:.8rem;color:var(--mu)}
+.qa{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px}.qa .btn{white-space:nowrap;padding:6px 11px;font-size:.82rem}
+.pz{position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center}.pzc{background:var(--sf);border-radius:18px;padding:26px;text-align:center;max-width:320px}.pzc h2{margin:0 0 6px}
 </style></head>
 <body>
 <div class="top"><div class="top-in">
@@ -83,7 +85,7 @@ textarea.pr{width:100%;height:200px;margin-top:8px;padding:10px;border:1px solid
     <button class="lc" data-l="Advanced"><b>🌳 Advanced</b><span>IELTS / GRE-level words</span></button>
    </div>
    <button class="btn pri go" id="start">Start learning</button>
-   <div class="how"><span>🎤 Speak your answers</span><span>✅ Instant right/wrong feedback</span><span>📈 Personal improvement plan</span></div>
+   <div class="how"><span>🎤 Speak your answers</span><span>✅ Instant right/wrong feedback</span><span>📈 Personal improvement plan</span><span>🗣️ Say: pause · repeat · hint · skip · end session</span></div>
    <p class="note" id="support" style="margin:12px 0 0"></p>
   </div>
   <details><summary>📋 Master prompt for future learning (copy &amp; reuse in any AI)</summary>
@@ -98,23 +100,24 @@ textarea.pr{width:100%;height:200px;margin-top:8px;padding:10px;border:1px solid
    <span class="pill" id="who"></span>
    <span class="st" id="stat">0 answered</span>
    <div class="prog"><i id="pg"></i></div>
-   <button class="btn" id="end">Finish &amp; plan</button>
-   <button class="btn" id="again">New session</button>
+      <button class="btn" id="again">New session</button>
   </div>
   <div id="chat"></div>
  </section>
 </div>
 
 <div class="dock hide" id="dock"><div class="dock-in">
+  <div class="qa"><button class="btn" id="pause">⏸ Pause</button><button class="btn" id="rep">🔁 Repeat</button><button class="btn" id="hint">💡 Hint</button><button class="btn" id="skip">⏭ Skip</button><button class="btn pri" id="end">✅ Finish &amp; plan</button></div>
   <div class="live" id="live"></div>
   <div class="ctrl">
    <button id="mic" title="Tap to speak">🎤</button>
    <input id="txt" placeholder="…or type your answer" autocomplete="off">
    <button class="btn pri" id="send">Send</button>
   </div>
-  <div class="mini"><label><input type="checkbox" id="hf" checked> Hands-free (auto-listen)</label><span>Tip: tap 🎤 to stop</span></div>
+  <div class="mini"><label><input type="checkbox" id="hf" checked> Hands-free (auto-listen)</label><select id="spd" class="sel" title="Speaking speed"><option value="0.85">Slow voice</option><option value="1" selected>Normal voice</option><option value="1.2">Fast voice</option></select></div>
 </div></div>
 
+<div id="pz" class="pz hide"><div class="pzc"><h2>⏸ Paused</h2><p class="note">Take your time. Your progress is saved.</p><button class="btn pri" id="resume">Resume</button></div></div>
 <script>
 const MASTER = `You are VocabVoice, a friendly spoken vocabulary coach.
 
@@ -153,12 +156,15 @@ function parse(t){t=String(t).replace(/```json|```/g,'');const i=t.indexOf('{'),
 document.querySelectorAll('#levels .lc').forEach(c=>c.onclick=()=>{
   document.querySelectorAll('#levels .lc').forEach(x=>x.classList.remove('on'));c.classList.add('on');level=c.dataset.l});
 
+let spk=0,paused=false;
 function speak(text,after){
-  if(!('speechSynthesis' in window)){after&&after();return}
-  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=1;u.lang='en-IN';
-  u.onend=()=>{after&&after()};u.onerror=()=>{after&&after()};
+  const id=++spk;
+  if(paused||!('speechSynthesis' in window)){after&&after();return}
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.rate=parseFloat($('spd').value)||1;u.lang='en-IN';
+  const d=()=>{if(id===spk&&after)after()};u.onend=d;u.onerror=d;
   status('🔊 Speaking…');speechSynthesis.speak(u);
 }
+function afterSpeak(){busy=false;if(paused)return;if($('hf').checked)listen();else status('Tap the mic to answer.')}
 async function ask(prompt){
   const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,provider:$('prov').value})});
   const d=await r.json().catch(()=>({}));
@@ -190,7 +196,7 @@ async function start(){
   try{
     const j=await ask(`${ctx()}\n\nGreet ${name} warmly by name, mention their level, and ask the FIRST question.\nReturn ONLY JSON: {"word":"target word","question":"the question text","spoken":"greeting using the name plus the question, under 45 words, no markdown"}`);
     curQ=j;add(el('div','b ai q',j.question));
-    speak(j.spoken||j.question,()=>{busy=false;if($('hf').checked)listen();else status('Tap the mic to answer.')});return;
+    speak(j.spoken||j.question,afterSpeak);return;
   }catch(e){fail(e)}
   busy=false;
 }
@@ -201,7 +207,8 @@ function list(title,arr,cls){
 }
 async function submit(ans){
   ans=(ans||'').trim();if(!ans||busy)return;
-  if(!active||!curQ)return;
+  if(!active||!curQ||paused)return;
+  if(cmd(ans)){txt.value='';stopRec();return}
   busy=true;txt.value='';stopRec();add(el('div','b me',ans));status(`Checking your answer, ${name}…`);
   try{
     const j=await ask(`${ctx()}\n\nWords already covered: ${covered()}.\nRecent history:\n${hist()}\n\nCurrent question (target word "${curQ.word}"): ${curQ.question}\nMy spoken answer (may contain speech-recognition slips; be forgiving of tiny transcription errors): ${ans}\n\nEvaluate honestly and strictly on meaning and usage. Then ask the next question (new word, or revisit a past mistake).\nReturn ONLY JSON:\n{"verdict":"right|partly|wrong","score":0-10,"right":["what I got right"],"wrong":["what was wrong, specific"],"model_answer":"a better full answer","tips":["2-3 concrete tips: memory trick, word family, example sentence, common mistake"],"spoken":"under 45 words, no markdown, uses ${name}'s name: verdict, key correction, then the next question","next":{"word":"...","question":"..."}}`);
@@ -214,7 +221,7 @@ async function submit(ans){
     if(j.model_answer){c.appendChild(el('h4',null,'Better answer'));c.appendChild(el('div','better',j.model_answer))}
     const t=list('How to improve',j.tips);if(t)c.appendChild(t);
     add(c);curQ=j.next;add(el('div','b ai q',j.next.question));
-    speak(j.spoken||j.next.question,()=>{busy=false;if($('hf').checked)listen();else status('Tap the mic to answer.')});
+    speak(j.spoken||j.next.question,afterSpeak);
     return;
   }catch(e){fail(e)}
   busy=false;
@@ -229,13 +236,13 @@ function listen(){
   rec=new SR();rec.lang='en-IN';rec.interimResults=true;rec.continuous=false;
   rec.onresult=e=>{let t='';for(const r of e.results)t+=r[0].transcript;finalT=t;status('🎤 '+t)};
   rec.onerror=e=>{mic.classList.remove('rec');status(e.error==='not-allowed'||e.error==='service-not-allowed'?'Microphone blocked. Allow mic access, or type your answer.':e.error==='no-speech'?"I didn't hear anything. Tap the mic to try again.":'Mic error: '+e.error)};
-  rec.onend=()=>{mic.classList.remove('rec');if(finalT.trim())submit(finalT)};
+  rec.onend=()=>{mic.classList.remove('rec');if(finalT.trim()&&!paused)submit(finalT)};
   try{rec.start();mic.classList.add('rec');status(`🎤 Listening, ${name}… speak your answer`)}catch(e){status('Could not start the mic.')}
 }
 
 async function finish(){
   if(!turns.length){status('Answer at least one question first.');return}
-  if(busy)return;busy=true;active=false;stopRec();speechSynthesis.cancel();status('Building your improvement plan…');
+  if(busy&&!speechSynthesis.speaking)return;spk++;busy=true;active=false;stopRec();speechSynthesis.cancel();status('Building your improvement plan…');
   try{
     const log=turns.map(t=>`Word: ${t.word} | Q: ${t.q} | Answer: ${t.a} | ${t.verdict}`).join('\n');
     const j=await ask(`${ctx()}\n\nThe session is over. Full log:\n${log}\n\nReturn ONLY JSON: {"summary":"2-3 sentences addressed to ${name} by name","strengths":["..."],"weak_words":["word: why I struggled"],"plan":["Day 1: ...","... 7 items"],"next_prompt":"a complete ready-to-paste prompt for my next session including my name (${name}), my level, my weak words, and the coaching structure"}`);
@@ -253,12 +260,43 @@ function copy(v,b){
   function fb(){const t=el('textarea');t.value=v;document.body.appendChild(t);t.select();try{document.execCommand('copy');done()}catch(e){}t.remove()}
   try{navigator.clipboard.writeText(v).then(done,fb)}catch(e){fb()}
 }
+const norm=a=>a.toLowerCase().replace(/[’']/g,'').replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();
+function cmd(a){
+  const n=norm(a);if(!n||n.split(' ').length>7)return false;
+  const me=()=>add(el('div','b me',a));
+  if(/(end|and|ends|finish|stop|close|complete|quit) (the |this |my )?(session|lesson|quiz|class|practice)|^(end|finish|quit|stop|im done|i am done|thats all|we are done|end it)( now| please)?$/.test(n)){me();finish();return true}
+  if(/^(pause|wait|hold on|take a break)( please)?$/.test(n)){me();pause();return true}
+  if(/^(repeat|repeat that|say that again|say again|repeat the question|come again)( please)?$/.test(n)){me();repeat();return true}
+  if(/^(hint|a hint|give me a hint|help|help me)( please)?$/.test(n)){me();hint();return true}
+  if(/^(skip|skip it|next|next question|pass)( please)?$/.test(n)){me();skip();return true}
+  return false;
+}
+const can=()=>curQ&&active&&!paused&&(!busy||speechSynthesis.speaking);
+function pause(){if(!active||paused)return;paused=true;spk++;finalT='';stopRec();try{speechSynthesis.cancel()}catch(e){}$('pz').classList.remove('hide');status('⏸ Paused');$('pause').textContent='▶ Resume'}
+function resume(){if(!paused)return;paused=false;$('pz').classList.add('hide');$('pause').textContent='⏸ Pause';if(curQ&&active){busy=true;speak('Welcome back '+name+'. '+curQ.question,afterSpeak)}}
+function repeat(){if(!can())return;stopRec();busy=true;speak(curQ.question,afterSpeak)}
+function hint(){
+  if(!can())return;stopRec();const w=(curQ.word||'').trim();
+  const t=w?`Hint: it starts with "${w[0].toUpperCase()}" and has ${w.replace(/[^a-zA-Z]/g,'').length} letters.`:'Hint: think about how the word is used in the question.';
+  add(el('div','b ai',t));busy=true;speak(t,afterSpeak);
+}
+async function skip(){
+  if(!can()||busy&&!speechSynthesis.speaking)return;stopRec();spk++;try{speechSynthesis.cancel()}catch(e){}
+  busy=true;status('Getting the next question…');
+  try{
+    turns.push({q:curQ.question,a:'(skipped)',verdict:'skipped',word:curQ.word});
+    const j=await ask(`${ctx()}\n\nWords already covered: ${covered()}.\n${name} skipped the word "${curQ.word}". Give its meaning in one short sentence, then ask the next question (a new word).\nReturn ONLY JSON: {"meaning":"one sentence","spoken":"under 40 words, uses ${name}'s name: the meaning then the next question","next":{"word":"...","question":"..."}}`);
+    add(el('div','b ai','Skipped: '+j.meaning));curQ=j.next;add(el('div','b ai q',j.next.question));
+    speak(j.spoken||j.next.question,afterSpeak);return;
+  }catch(e){fail(e)}
+  busy=false;
+}
 function again(){
-  active=false;busy=false;stopRec();try{speechSynthesis.cancel()}catch(e){}
+  paused=false;$('pz').classList.add('hide');$('pause').textContent='⏸ Pause';spk++;active=false;busy=false;stopRec();try{speechSynthesis.cancel()}catch(e){}
   $('session').classList.add('hide');$('dock').classList.add('hide');$('welcome').classList.remove('hide');window.scrollTo(0,0);
 }
 
-$('start').onclick=start;$('end').onclick=finish;$('again').onclick=again;mic.onclick=listen;
+$('pause').onclick=()=>paused?resume():pause();$('resume').onclick=resume;$('rep').onclick=repeat;$('hint').onclick=hint;$('skip').onclick=skip;$('start').onclick=start;$('end').onclick=finish;$('again').onclick=again;mic.onclick=listen;
 $('send').onclick=()=>submit(txt.value);
 txt.addEventListener('keydown',e=>{if(e.key==='Enter')submit(txt.value)});
 $('nm').addEventListener('keydown',e=>{if(e.key==='Enter')start()});
